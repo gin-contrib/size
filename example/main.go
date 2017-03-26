@@ -1,11 +1,3 @@
-# size
-
-Limit size of POST requests for Gin framework
-
-## Example
-
-[embedmd]:# (example/main.go go)
-```go
 package main
 
 import (
@@ -27,4 +19,3 @@ func main() {
 	rtr.POST("/", handler)
 	rtr.Run(":8080")
 }
-```
