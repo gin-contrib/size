@@ -3,7 +3,7 @@ package main
 import (
   "net/http"
 
-  "github.com/gin-contrib/limits"
+  size "github.com/gin-contrib/size"
   "github.com/gin-gonic/gin"
 )
 
@@ -17,7 +17,7 @@ func handler(ctx *gin.Context) {
 
 func main() {
   rtr := gin.Default()
-  rtr.Use(limits.RateLimiter({{.Size}}))
+  rtr.Use(size.RateLimiter({{.Size}}))
   rtr.POST("/", handler)
   rtr.Run(":{{.Port}}")
 }
