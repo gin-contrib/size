@@ -15,6 +15,7 @@ Limit size of POST requests for Gin framework
 package main
 
 import (
+	"net/http"
 	"github.com/gin-contrib/size"
 	"github.com/gin-gonic/gin"
 )
@@ -29,7 +30,7 @@ func handler(ctx *gin.Context) {
 
 func main() {
 	rtr := gin.Default()
-	rtr.Use(ratelimit.RateLimiter(10))
+	rtr.Use(limits.RateLimiter(10))
 	rtr.POST("/", handler)
 	rtr.Run(":8080")
 }
