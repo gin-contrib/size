@@ -70,13 +70,13 @@ func (mbr *maxBytesReader) Close() error {
 	return mbr.rdr.Close()
 }
 
-// RateLimiter returns a middleware that limits the size of request
+// RequestSizeLimiter returns a middleware that limits the size of request
 // When a request is over the limit, the following will happen:
 // * Error will be added to the context
 // * Connection: close header will be set
-// * Error 413 will be send to client (http.StatusRequestEntityTooLarge)
+// * Error 413 will be sent to the client (http.StatusRequestEntityTooLarge)
 // * Current context will be aborted
-func RateLimiter(limit int64) gin.HandlerFunc {
+func RequestSizeLimiter(limit int64) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ctx.Request.Body = &maxBytesReader{
 			ctx:        ctx,
