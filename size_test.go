@@ -2,97 +2,58 @@ package limits
 
 import (
 	"bytes"
-	"fmt"
+	"io/ioutil"
 	"net/http"
-	"os"
-	"os/exec"
+	"net/http/httptest"
 	"testing"
-	"text/template"
-	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
-var (
-	params = struct {
-		Size int
-		Port int
-	}{10, 9388}
-
-	codeFile  = "/tmp/ratelimit_test_server.go"
-	serverURL string
-)
-
-func init() {
-	tmpl := template.Must(template.ParseFiles("test_server.tmpl"))
-	fp, err := os.Create(codeFile)
-	if err != nil {
-		panic(fmt.Errorf("can't open %s - %s", codeFile, err))
-	}
-	err = tmpl.Execute(fp, params)
-	if err != nil {
-		panic(fmt.Errorf("can't create %s - %s", codeFile, err))
-	}
-	serverURL = fmt.Sprintf("http://localhost:%d", params.Port)
-}
-
-func waitForServer() error {
-	timeout := 30 * time.Second
-	ch := make(chan bool)
-	go func() {
-		for {
-			_, err := http.Post(serverURL, "text/plain", nil)
-			if err == nil {
-				ch <- true
-			}
-			time.Sleep(10 * time.Millisecond)
+func TestRequestSizeLimiterOK(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+	router.POST("/test_ok", func(c *gin.Context) {
+		ioutil.ReadAll(c.Request.Body)
+		if len(c.Errors) > 0 {
+			return
 		}
-	}()
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "OK")
+	})
+	resp := performRequest(http.MethodPost, "/test_ok", "big=abc", router)
 
-	select {
-	case <-ch:
-		return nil
-	case <-time.After(timeout):
-		return fmt.Errorf("server did not reply after %v", timeout)
-	}
-
-}
-
-func runServer() (*exec.Cmd, error) {
-	cmd := exec.Command("go", "run", codeFile)
-	cmd.Start()
-	if err := waitForServer(); err != nil {
-		return nil, err
-	}
-	return cmd, nil
-}
-
-func doPost(val string) (*http.Response, error) {
-	cmd, err := runServer()
-	if err != nil {
-		return nil, err
-	}
-	defer cmd.Process.Kill()
-
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "big=%s", val)
-	return http.Post(serverURL, "application/x-www-form-urlencoded", &buf)
-}
-
-func TestRateLimiterOK(t *testing.T) {
-	resp, err := doPost("abc")
-	if err != nil {
-		t.Fatalf("error posting - %s", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("bad status - %d", resp.StatusCode)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("error posting - http status %v", resp.Code)
 	}
 }
 
-func TestRateLimiterOver(t *testing.T) {
-	resp, err := doPost("abcdefghijklmnop")
-	if err != nil {
-		t.Fatalf("error posting - %s", err)
+func TestRequestSizeLimiterOver(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+	router.POST("/test_large", func(c *gin.Context) {
+		ioutil.ReadAll(c.Request.Body)
+		if len(c.Errors) > 0 {
+			return
+		}
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "OK")
+	})
+	resp := performRequest(http.MethodPost, "/test_large", "big=abcdefghijklmnop", router)
+
+	if resp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("error posting - http status %v", resp.Code)
 	}
-	if resp.StatusCode != http.StatusRequestEntityTooLarge {
-		t.Fatalf("bad status - %d", resp.StatusCode)
+}
+
+func performRequest(method, target, body string, router *gin.Engine) *httptest.ResponseRecorder {
+	var buf *bytes.Buffer
+	if body != "" {
+		buf = new(bytes.Buffer)
+		buf.WriteString(body)
 	}
+	r := httptest.NewRequest(method, target, buf)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	return w
 }

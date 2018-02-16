@@ -16,7 +16,7 @@ func handler(ctx *gin.Context) {
 
 func main() {
 	rtr := gin.Default()
-	rtr.Use(limits.RateLimiter(10))
+	rtr.Use(limits.RequestSizeLimiter(10))
 	rtr.POST("/", handler)
 	rtr.Run(":8080")
 }
