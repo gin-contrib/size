@@ -1,6 +1,6 @@
 # size
 
-[![Build Status](https://travis-ci.org/gin-contrib/size.svg)](https://travis-ci.org/gin-contrib/size)
+[![Run Tests](https://github.com/gin-contrib/size/actions/workflows/go.yml/badge.svg)](https://github.com/gin-contrib/size/actions/workflows/go.yml)
 [![codecov](https://codecov.io/gh/gin-contrib/size/branch/master/graph/badge.svg)](https://codecov.io/gh/gin-contrib/size)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gin-contrib/size)](https://goreportcard.com/report/github.com/gin-contrib/size)
 [![GoDoc](https://godoc.org/github.com/gin-contrib/size?status.svg)](https://godoc.org/github.com/gin-contrib/size)
