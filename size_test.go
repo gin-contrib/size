@@ -14,7 +14,7 @@ func TestRequestSizeLimiterOK(t *testing.T) {
 	router := gin.New()
 	router.Use(RequestSizeLimiter(10))
 	router.POST("/test_ok", func(c *gin.Context) {
-		ioutil.ReadAll(c.Request.Body)
+		_, _ = ioutil.ReadAll(c.Request.Body)
 		if len(c.Errors) > 0 {
 			return
 		}
@@ -32,7 +32,7 @@ func TestRequestSizeLimiterOver(t *testing.T) {
 	router := gin.New()
 	router.Use(RequestSizeLimiter(10))
 	router.POST("/test_large", func(c *gin.Context) {
-		ioutil.ReadAll(c.Request.Body)
+		_, _ = ioutil.ReadAll(c.Request.Body)
 		if len(c.Errors) > 0 {
 			return
 		}

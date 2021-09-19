@@ -22,7 +22,7 @@ func (mbr *maxBytesReader) tooLarge() (n int, err error) {
 	if !mbr.wasAborted {
 		mbr.wasAborted = true
 		ctx := mbr.ctx
-		ctx.Error(err)
+		_ = ctx.Error(err)
 		ctx.Header("connection", "close")
 		ctx.String(http.StatusRequestEntityTooLarge, "request too large")
 		ctx.AbortWithStatus(http.StatusRequestEntityTooLarge)
