@@ -10,28 +10,28 @@ Limit size of POST requests for Gin framework
 
 ## Example
 
-[embedmd]:# (example/main.go go)
 ```go
 package main
 
 import (
-	"net/http"
-	"github.com/gin-contrib/size"
-	"github.com/gin-gonic/gin"
+  "net/http"
+
+  "github.com/gin-contrib/size"
+  "github.com/gin-gonic/gin"
 )
 
 func handler(ctx *gin.Context) {
-	val := ctx.PostForm("b")
-	if len(ctx.Errors) > 0 {
-		return
-	}
-	ctx.String(http.StatusOK, "got %s\n", val)
+  val := ctx.PostForm("b")
+  if len(ctx.Errors) > 0 {
+    return
+  }
+  ctx.String(http.StatusOK, "got %s\n", val)
 }
 
 func main() {
-	rtr := gin.Default()
-	rtr.Use(limits.RequestSizeLimiter(10))
-	rtr.POST("/", handler)
-	rtr.Run(":8080")
+  rtr := gin.Default()
+  rtr.Use(limits.RequestSizeLimiter(10))
+  rtr.POST("/", handler)
+  rtr.Run(":8080")
 }
 ```
