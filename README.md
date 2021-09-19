@@ -29,9 +29,11 @@ func handler(ctx *gin.Context) {
 }
 
 func main() {
-  rtr := gin.Default()
-  rtr.Use(limits.RequestSizeLimiter(10))
-  rtr.POST("/", handler)
-  rtr.Run(":8080")
+  r := gin.Default()
+  r.Use(limits.RequestSizeLimiter(10))
+  r.POST("/", handler)
+  if err := r.Run(":8080"); err != nil {
+    log.Fatal(err)
+  }
 }
 ```
