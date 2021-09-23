@@ -16,7 +16,7 @@ package main
 import (
   "net/http"
 
-  "github.com/gin-contrib/size"
+  limits "github.com/gin-contrib/size"
   "github.com/gin-gonic/gin"
 )
 
