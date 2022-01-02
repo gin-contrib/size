@@ -63,7 +63,7 @@ func (mbr *maxBytesReader) Read(p []byte) (n int, err error) {
 	if mbr.remaining < 0 {
 		mbr.remaining = 0
 	}
-	return
+	return n, err
 }
 
 func (mbr *maxBytesReader) Close() error {
