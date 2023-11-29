@@ -46,6 +46,36 @@ func TestRequestSizeLimiterOver(t *testing.T) {
 	}
 }
 
+func TestCallback(t *testing.T) {
+	router := gin.New()
+
+	cb := func(ctx *gin.Context) {
+		if ctx == nil {
+			t.Errorf("ctx should not be nil")
+		}
+
+		if ctx.Request.URL.Path != "/test_large" {
+			t.Errorf("unexpect path %q", ctx.Request.URL.Path)
+		}
+	}
+
+	router.Use(RequestSizeLimiter(10, WithCallback(cb)))
+
+	router.POST("/test_large", func(c *gin.Context) {
+		_, _ = ioutil.ReadAll(c.Request.Body)
+		if len(c.Errors) > 0 {
+			return
+		}
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "OK")
+	})
+	resp := performRequest(http.MethodPost, "/test_large", "big=abcdefghijklmnop", router)
+
+	if resp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("error posting - http status %v", resp.Code)
+	}
+}
+
 func performRequest(method, target, body string, router *gin.Engine) *httptest.ResponseRecorder {
 	var buf *bytes.Buffer
 	if body != "" {
