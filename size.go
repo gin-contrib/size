@@ -16,7 +16,6 @@ type opt func(*maxBytesReader) error
 type maxBytesReader struct {
 	ctx        *gin.Context
 	rdr        io.ReadCloser
-	limit      int64
 	remaining  int64
 	wasAborted bool
 	sawEOF     bool
@@ -103,7 +102,6 @@ func RequestSizeLimiter(limit int64, opts ...opt) gin.HandlerFunc {
 		mbr := &maxBytesReader{
 			ctx:        ctx,
 			rdr:        ctx.Request.Body,
-			limit:      limit,
 			remaining:  limit,
 			wasAborted: false,
 			sawEOF:     false,
