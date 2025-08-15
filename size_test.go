@@ -21,7 +21,7 @@ func TestRequestSizeLimiterOK(t *testing.T) {
 		c.Request.Body.Close()
 		c.String(http.StatusOK, "OK")
 	})
-	resp := performRequest(http.MethodPost, "/test_ok", "big=abc", router)
+	resp := performRequest("/test_ok", "big=abc", router)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("error posting - http status %v", resp.Code)
@@ -39,7 +39,7 @@ func TestRequestSizeLimiterOver(t *testing.T) {
 		c.Request.Body.Close()
 		c.String(http.StatusOK, "OK")
 	})
-	resp := performRequest(http.MethodPost, "/test_large", "big=abcdefghijklmnop", router)
+	resp := performRequest("/test_large", "big=abcdefghijklmnop", router)
 
 	if resp.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("error posting - http status %v", resp.Code)
@@ -59,7 +59,7 @@ func TestRequestSizeLimiterExactLimit(t *testing.T) {
 		c.String(http.StatusOK, "OK")
 	})
 	// "1234567890" is exactly 10 bytes
-	resp := performRequest(http.MethodPost, "/test_exact", "1234567890", router)
+	resp := performRequest("/test_exact", "1234567890", router)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
@@ -78,7 +78,7 @@ func TestRequestSizeLimiterEmptyBody(t *testing.T) {
 		c.Request.Body.Close()
 		c.String(http.StatusOK, "OK")
 	})
-	resp := performRequest(http.MethodPost, "/test_empty", "", router)
+	resp := performRequest("/test_empty", "", router)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
@@ -94,7 +94,7 @@ func TestRequestSizeLimiterHeaders(t *testing.T) {
 		// Should not reach here due to size limit
 		c.String(http.StatusOK, "OK")
 	})
-	resp := performRequest(http.MethodPost, "/test_headers", "toolarge", router)
+	resp := performRequest("/test_headers", "toolarge", router)
 
 	if resp.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected status %v, got %v", http.StatusRequestEntityTooLarge, resp.Code)
@@ -120,7 +120,7 @@ func TestRequestSizeLimiterContextErrors(t *testing.T) {
 		}
 	})
 
-	performRequest(http.MethodPost, "/test_errors", "toolarge", router)
+	performRequest("/test_errors", "toolarge", router)
 
 	if len(contextErrors) != 1 {
 		t.Fatalf("expected 1 error in context, got %d", len(contextErrors))
@@ -162,7 +162,7 @@ func TestRequestSizeLimiterChunkedReading(t *testing.T) {
 	})
 
 	// Send exactly 9 bytes (under limit)
-	resp := performRequest(http.MethodPost, "/test_chunked", "123456789", router)
+	resp := performRequest("/test_chunked", "123456789", router)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
@@ -184,16 +184,16 @@ func TestMaxBytesReaderClose(t *testing.T) {
 		c.String(http.StatusOK, "OK")
 	})
 
-	resp := performRequest(http.MethodPost, "/test_close", "test", router)
+	resp := performRequest("/test_close", "test", router)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
 	}
 }
 
-func performRequest(method, target, body string, router *gin.Engine) *httptest.ResponseRecorder {
+func performRequest(target, body string, router *gin.Engine) *httptest.ResponseRecorder {
 	buf := bytes.NewBufferString(body)
-	r := httptest.NewRequest(method, target, buf)
+	r := httptest.NewRequest(http.MethodPost, target, buf)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 	return w

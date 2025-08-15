@@ -22,7 +22,7 @@ type maxBytesReader struct {
 func (mbr *maxBytesReader) tooLarge() (int, error) {
 	if !mbr.wasAborted {
 		mbr.wasAborted = true
-		mbr.ctx.Error(errRequestTooLarge)
+		_ = mbr.ctx.Error(errRequestTooLarge)
 		mbr.ctx.Header("Connection", "close") // Proper header capitalization
 		mbr.ctx.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
 			"error": "request too large",
