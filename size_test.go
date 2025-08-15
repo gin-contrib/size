@@ -46,12 +46,153 @@ func TestRequestSizeLimiterOver(t *testing.T) {
 	}
 }
 
-func performRequest(method, target, body string, router *gin.Engine) *httptest.ResponseRecorder {
-	var buf *bytes.Buffer
-	if body != "" {
-		buf = new(bytes.Buffer)
-		buf.WriteString(body)
+// Test boundary case: exactly at the limit
+func TestRequestSizeLimiterExactLimit(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+	router.POST("/test_exact", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		if len(c.Errors) > 0 {
+			return
+		}
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "OK")
+	})
+	// "1234567890" is exactly 10 bytes
+	resp := performRequest(http.MethodPost, "/test_exact", "1234567890", router)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
 	}
+}
+
+// Test empty request body
+func TestRequestSizeLimiterEmptyBody(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+	router.POST("/test_empty", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		if len(c.Errors) > 0 {
+			return
+		}
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "OK")
+	})
+	resp := performRequest(http.MethodPost, "/test_empty", "", router)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
+	}
+}
+
+// Test headers are set correctly when over limit
+func TestRequestSizeLimiterHeaders(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(5))
+	router.POST("/test_headers", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		// Should not reach here due to size limit
+		c.String(http.StatusOK, "OK")
+	})
+	resp := performRequest(http.MethodPost, "/test_headers", "toolarge", router)
+
+	if resp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status %v, got %v", http.StatusRequestEntityTooLarge, resp.Code)
+	}
+
+	// Check Connection header is set
+	if resp.Header().Get("Connection") != "close" {
+		t.Fatalf("expected Connection header to be 'close', got '%s'", resp.Header().Get("Connection"))
+	}
+}
+
+// Test context errors are added correctly
+func TestRequestSizeLimiterContextErrors(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(5))
+
+	var contextErrors []error
+	router.POST("/test_errors", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		contextErrors = make([]error, len(c.Errors))
+		for i, err := range c.Errors {
+			contextErrors[i] = err.Err
+		}
+	})
+
+	performRequest(http.MethodPost, "/test_errors", "toolarge", router)
+
+	if len(contextErrors) != 1 {
+		t.Fatalf("expected 1 error in context, got %d", len(contextErrors))
+	}
+
+	if contextErrors[0].Error() != "HTTP request too large" {
+		t.Fatalf("expected error message 'HTTP request too large', got '%s'", contextErrors[0].Error())
+	}
+}
+
+// Test chunked reading (multiple small reads)
+func TestRequestSizeLimiterChunkedReading(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+
+	router.POST("/test_chunked", func(c *gin.Context) {
+		// Read in small chunks to test the chunked reading logic
+		buf := make([]byte, 3) // Small buffer to force multiple reads
+		var total []byte
+
+		for {
+			n, err := c.Request.Body.Read(buf)
+			if n > 0 {
+				total = append(total, buf[:n]...)
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				break
+			}
+		}
+
+		if len(c.Errors) > 0 {
+			return
+		}
+		c.Request.Body.Close()
+		c.String(http.StatusOK, "Read %d bytes", len(total))
+	})
+
+	// Send exactly 9 bytes (under limit)
+	resp := performRequest(http.MethodPost, "/test_chunked", "123456789", router)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
+	}
+}
+
+// Test Close method
+func TestMaxBytesReaderClose(t *testing.T) {
+	router := gin.New()
+	router.Use(RequestSizeLimiter(10))
+
+	router.POST("/test_close", func(c *gin.Context) {
+		// Just close without reading
+		err := c.Request.Body.Close()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Close failed")
+			return
+		}
+		c.String(http.StatusOK, "OK")
+	})
+
+	resp := performRequest(http.MethodPost, "/test_close", "test", router)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %v, got %v", http.StatusOK, resp.Code)
+	}
+}
+
+func performRequest(method, target, body string, router *gin.Engine) *httptest.ResponseRecorder {
+	buf := bytes.NewBufferString(body)
 	r := httptest.NewRequest(method, target, buf)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)

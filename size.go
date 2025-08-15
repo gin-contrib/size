@@ -1,12 +1,15 @@
 package limits
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
+
+// Pre-defined error to avoid repeated allocations
+var errRequestTooLarge = errors.New("HTTP request too large")
 
 type maxBytesReader struct {
 	ctx        *gin.Context
@@ -16,21 +19,24 @@ type maxBytesReader struct {
 	sawEOF     bool
 }
 
-func (mbr *maxBytesReader) tooLarge() (n int, err error) {
-	n, err = 0, fmt.Errorf("HTTP request too large")
-
+func (mbr *maxBytesReader) tooLarge() (int, error) {
 	if !mbr.wasAborted {
 		mbr.wasAborted = true
-		ctx := mbr.ctx
-		_ = ctx.Error(err)
-		ctx.Header("connection", "close")
-		ctx.String(http.StatusRequestEntityTooLarge, "request too large")
-		ctx.AbortWithStatus(http.StatusRequestEntityTooLarge)
+		mbr.ctx.Error(errRequestTooLarge)
+		mbr.ctx.Header("Connection", "close") // Proper header capitalization
+		mbr.ctx.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+			"error": "request too large",
+		})
 	}
-	return
+	return 0, errRequestTooLarge
 }
 
-func (mbr *maxBytesReader) Read(p []byte) (n int, err error) {
+func (mbr *maxBytesReader) Read(p []byte) (int, error) {
+	// Early return if already aborted to avoid unnecessary work
+	if mbr.wasAborted {
+		return 0, errRequestTooLarge
+	}
+
 	toRead := mbr.remaining
 	if mbr.remaining == 0 {
 		if mbr.sawEOF {
@@ -47,10 +53,12 @@ func (mbr *maxBytesReader) Read(p []byte) (n int, err error) {
 	if int64(len(p)) > toRead {
 		p = p[:toRead]
 	}
-	n, err = mbr.rdr.Read(p)
+
+	n, err := mbr.rdr.Read(p)
 	if err == io.EOF {
 		mbr.sawEOF = true
 	}
+
 	if mbr.remaining == 0 {
 		// If we had zero bytes to read remaining (but hadn't seen EOF)
 		// and we get a byte here, that means we went over our limit.
@@ -59,6 +67,7 @@ func (mbr *maxBytesReader) Read(p []byte) (n int, err error) {
 		}
 		return 0, err
 	}
+
 	mbr.remaining -= int64(n)
 	if mbr.remaining < 0 {
 		mbr.remaining = 0
@@ -79,11 +88,10 @@ func (mbr *maxBytesReader) Close() error {
 func RequestSizeLimiter(limit int64) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ctx.Request.Body = &maxBytesReader{
-			ctx:        ctx,
-			rdr:        ctx.Request.Body,
-			remaining:  limit,
-			wasAborted: false,
-			sawEOF:     false,
+			ctx:       ctx,
+			rdr:       ctx.Request.Body,
+			remaining: limit,
+			// wasAborted and sawEOF default to false, no need to specify
 		}
 		ctx.Next()
 	}
