@@ -33,10 +33,11 @@ func TestRequestSizeLimiterOver(t *testing.T) {
 	router := gin.New()
 	router.Use(RequestSizeLimiter(10))
 	router.POST("/test_large", func(c *gin.Context) {
-		_, _ = io.ReadAll(c.Request.Body)
+		// Check for middleware errors first
 		if len(c.Errors) > 0 {
 			return
 		}
+		_, _ = io.ReadAll(c.Request.Body)
 		c.Request.Body.Close()
 		c.String(http.StatusOK, "OK")
 	})
@@ -91,6 +92,10 @@ func TestRequestSizeLimiterHeaders(t *testing.T) {
 	router := gin.New()
 	router.Use(RequestSizeLimiter(5))
 	router.POST("/test_headers", func(c *gin.Context) {
+		// Check for middleware errors first
+		if len(c.Errors) > 0 {
+			return
+		}
 		_, _ = io.ReadAll(c.Request.Body)
 		// Should not reach here due to size limit
 		c.String(http.StatusOK, "OK")
@@ -119,6 +124,7 @@ func TestRequestSizeLimiterContextErrors(t *testing.T) {
 		for i, err := range c.Errors {
 			contextErrors[i] = err.Err
 		}
+		// Note: This test needs to capture errors, so we don't return early
 	})
 
 	performRequest("/test_errors", "toolarge", router)
@@ -138,6 +144,11 @@ func TestRequestSizeLimiterChunkedReading(t *testing.T) {
 	router.Use(RequestSizeLimiter(10))
 
 	router.POST("/test_chunked", func(c *gin.Context) {
+		// Check for middleware errors first
+		if len(c.Errors) > 0 {
+			return
+		}
+
 		// Read in small chunks to test the chunked reading logic
 		buf := make([]byte, 3) // Small buffer to force multiple reads
 		var total []byte
@@ -155,9 +166,6 @@ func TestRequestSizeLimiterChunkedReading(t *testing.T) {
 			}
 		}
 
-		if len(c.Errors) > 0 {
-			return
-		}
 		c.Request.Body.Close()
 		c.String(http.StatusOK, "Read %d bytes", len(total))
 	})
