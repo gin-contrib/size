@@ -3,6 +3,7 @@ package limits
 import (
 	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -197,4 +198,94 @@ func performRequest(target, body string, router *gin.Engine) *httptest.ResponseR
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 	return w
+}
+
+// TestRealisticFileUpload demonstrates real-world scenarios with proper size limits
+func TestRealisticFileUpload(t *testing.T) {
+	// Use a more realistic limit - 1MB for file uploads
+	router := gin.New()
+	router.Use(RequestSizeLimiter(1024 * 1024)) // 1MB limit
+
+	router.POST("/upload", func(ctx *gin.Context) {
+		// ALWAYS check for middleware errors first
+		if len(ctx.Errors) > 0 {
+			// Middleware has already handled the error response
+			return
+		}
+
+		// Safe to proceed with file processing
+		file, err := ctx.FormFile("file")
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Failed to process file: " + err.Error(),
+			})
+			return
+		}
+
+		ctx.JSON(http.StatusOK, gin.H{
+			"success":  true,
+			"message":  "File uploaded successfully",
+			"filename": file.Filename,
+			"size":     file.Size,
+		})
+	})
+
+	t.Run("NormalFileUpload", func(t *testing.T) {
+		// Test with normal file (should succeed)
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		part, _ := writer.CreateFormFile("file", "test.txt")
+		part.Write([]byte("This is a normal file content"))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		}
+		t.Logf("Normal file response: %s", w.Body.String())
+	})
+
+	t.Run("VeryLargeFileUpload", func(t *testing.T) {
+		// Test with very large file (should be rejected by middleware)
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		part, _ := writer.CreateFormFile("file", "huge_file.bin")
+
+		// Write 2MB of data - exceeds 1MB limit
+		largeContent := bytes.Repeat([]byte("X"), 2*1024*1024)
+		part.Write(largeContent)
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/upload", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Should get 413 from middleware
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("Expected status %d, got %d", http.StatusRequestEntityTooLarge, w.Code)
+		}
+
+		t.Logf("Large file response code: %d", w.Code)
+		t.Logf("Large file response body: %s", w.Body.String())
+
+		// Should only contain middleware response
+		expectedStart := `{"error":"request too large"}`
+		actualBody := w.Body.String()
+		if !bytes.HasPrefix([]byte(actualBody), []byte(expectedStart)) {
+			t.Errorf("Expected response to start with %s, got: %s", expectedStart, actualBody)
+		}
+
+		// Check Connection header
+		if w.Header().Get("Connection") != "close" {
+			t.Errorf("Expected Connection header to be 'close', got '%s'", w.Header().Get("Connection"))
+		}
+	})
 }
