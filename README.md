@@ -8,6 +8,7 @@
 
 > ⚠️ **This repository is no longer maintained.**
 > Please use the official Go [`http.MaxBytesReader`](https://pkg.go.dev/net/http#MaxBytesReader) and its example methods to limit upload file size, ensuring application security and performance.
+> For Gin-specific usage, refer to [Gin official example: limit-bytes](https://github.com/gin-gonic/examples/tree/master/upload-file/limit-bytes).
 
 Limit size of POST requests for Gin framework
 
