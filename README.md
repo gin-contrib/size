@@ -6,6 +6,9 @@
 [![GoDoc](https://godoc.org/github.com/gin-contrib/size?status.svg)](https://godoc.org/github.com/gin-contrib/size)
 [![Join the chat at https://gitter.im/gin-gonic/gin](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/gin-gonic/gin)
 
+> ⚠️ **This repository is no longer maintained.**
+> Please use the official Go [`http.MaxBytesReader`](https://pkg.go.dev/net/http#MaxBytesReader) and its example methods to limit upload file size, ensuring application security and performance.
+
 Limit size of POST requests for Gin framework
 
 ## File Upload Handling
